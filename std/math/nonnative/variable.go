@@ -208,6 +208,11 @@ func (fp *Params) From(api frontend.API, a Element) Element {
 	}
 }
 
+// isEqual returns if fp is equivalent to other.
+func (fp *Params) isEqual(other *Params) bool {
+	return fp.r.Cmp(other.r) == 0 && fp.nbBits == other.nbBits
+}
+
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
