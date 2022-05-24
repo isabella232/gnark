@@ -346,12 +346,6 @@ func (e *Element) Add(a, b Element) *Element {
 	// constant's overflow never increases?)
 	// TODO: check that the target is a variable (has an API)
 	// TODO: if both are constants, then add big ints
-	if a.overflow+e.params.nbBits == e.maxWidth() {
-		a.Reduce(a)
-	}
-	if b.overflow+e.params.nbBits == e.maxWidth() {
-		b.Reduce(b)
-	}
 	e.overflow = 1
 	if a.overflow > b.overflow {
 		e.overflow += a.overflow
@@ -468,12 +462,6 @@ func (e *Element) AssertIsEqual(a Element) {
 func (e *Element) Sub(a, b Element) *Element {
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
-	if a.overflow+e.params.nbBits+2 == e.maxWidth() {
-		a.Reduce(a)
-	}
-	if b.overflow+e.params.nbBits+2 == e.maxWidth() {
-		b.Reduce(b)
-	}
 	nbLimbs := len(a.Limbs)
 	if len(b.Limbs) > nbLimbs {
 		nbLimbs = len(b.Limbs)
