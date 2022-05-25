@@ -23,21 +23,24 @@ type fakeAPI struct {
 	params *Params
 }
 
-func (f *fakeAPI) varToElement(in frontend.Variable) Element {
-	var e Element
+func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
+	var e *Element
 	switch vv := in.(type) {
 	case Element:
-		e = vv
+		e = &vv
 	case *Element:
-		e = *vv
+		e = vv
 	case *big.Int:
-		e = f.params.ConstantFromBigOrPanic(vv)
+		el := f.params.ConstantFromBigOrPanic(vv)
+		e = &el
 	case big.Int:
-		e = f.params.ConstantFromBigOrPanic(&vv)
+		el := f.params.ConstantFromBigOrPanic(&vv)
+		e = &el
 	case int:
-		e = f.params.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
+		el := f.params.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
+		e = &el
 	default:
-		panic(fmt.Sprintf("can not cast %T to Element", in))
+		panic(fmt.Sprintf("can not cast %T to *Element", in))
 	}
 	if !f.params.isEqual(e.params) {
 		panic("incompatible Element parameters")
@@ -45,8 +48,8 @@ func (f *fakeAPI) varToElement(in frontend.Variable) Element {
 	return e
 }
 
-func (f *fakeAPI) varsToElements(in ...frontend.Variable) []Element {
-	var els []Element
+func (f *fakeAPI) varsToElements(in ...frontend.Variable) []*Element {
+	var els []*Element
 	for i := range in {
 		switch v := in[i].(type) {
 		case []frontend.Variable:
@@ -62,40 +65,40 @@ func (f *fakeAPI) varsToElements(in ...frontend.Variable) []Element {
 func (f *fakeAPI) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.params.Element(f.api)
-	res.Add(els[0], els[1])
+	res.Add(*els[0], *els[1])
 	for i := 2; i < len(els); i++ {
-		res.Add(res, els[i])
+		res.Add(res, *els[i])
 	}
-	return res
+	return &res
 }
 
 func (f *fakeAPI) Neg(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
 	res := f.params.Element(f.api)
-	res.Negate(el)
-	return res
+	res.Negate(*el)
+	return &res
 }
 
 func (f *fakeAPI) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	sub := f.params.Element(f.api)
-	sub.Set(els[1])
+	sub.Set(*els[1])
 	for i := 2; i < len(els); i++ {
-		sub.Add(sub, els[i])
+		sub.Add(sub, *els[i])
 	}
 	res := f.params.Element(f.api)
-	res.Sub(els[0], sub)
-	return res
+	res.Sub(*els[0], sub)
+	return &res
 }
 
 func (f *fakeAPI) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.params.Element(f.api)
-	res.Mul(els[0], els[1])
+	res.Mul(*els[0], *els[1])
 	for i := 2; i < len(els); i++ {
-		res.Mul(res, els[i])
+		res.Mul(res, *els[i])
 	}
-	return res
+	return &res
 }
 
 func (f *fakeAPI) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
@@ -106,15 +109,15 @@ func (f *fakeAPI) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) front
 func (f *fakeAPI) Div(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2)
 	res := f.params.Element(f.api)
-	res.Div(els[0], els[1])
-	return res
+	res.Div(*els[0], *els[1])
+	return &res
 }
 
 func (f *fakeAPI) Inverse(i1 frontend.Variable) frontend.Variable {
 	el := f.varToElement(i1)
 	res := f.params.Element(f.api)
-	res.Inverse(el)
-	return res
+	res.Inverse(*el)
+	return &res
 }
 
 func (f *fakeAPI) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
@@ -176,8 +179,8 @@ func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.
 func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i0, i1, i2, i3)
 	res := f.params.Element(f.api)
-	res.Lookup2(b0, b1, els[0], els[1], els[2], els[3])
-	return res
+	res.Lookup2(b0, b1, *els[0], *els[1], *els[2], *els[3])
+	return &res
 }
 
 func (f *fakeAPI) IsZero(i1 frontend.Variable) frontend.Variable {
@@ -191,8 +194,8 @@ func (f *fakeAPI) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Varia
 func (f *fakeAPI) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := f.varsToElements(i1, i2)
 	tmp := f.params.Element(f.api)
-	tmp.Set(els[0])
-	tmp.AssertIsEqual(els[1])
+	tmp.Set(*els[0])
+	tmp.AssertIsEqual(*els[1])
 }
 
 func (f *fakeAPI) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {

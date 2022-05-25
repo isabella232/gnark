@@ -20,6 +20,16 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 )
 
+type errOverflow struct {
+	op           string
+	nextOverflow uint
+	maxOverflow  uint
+}
+
+func (e errOverflow) Error() string {
+	return fmt.Sprintf("op %s overflow %d exceeds max %d", e.op, e.nextOverflow, e.maxOverflow)
+}
+
 // Params defines the parameters of the emulated ring of integers modulo n. If
 // n is prime, then the ring is also a finite field where inverse and division
 // are allowed.
@@ -362,7 +372,7 @@ func (e Element) addPreCond(a, b Element) (nextOverflow uint, err error) {
 		nextOverflow += b.overflow
 	}
 	if nextOverflow > e.maxOverflow() {
-		err = fmt.Errorf("next addition overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+		err = errOverflow{op: "add", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow()}
 	}
 	return
 }
@@ -405,7 +415,7 @@ func (e Element) mulPreCond(a, b Element) (nextOverflow uint, err error) {
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
 	nextOverflow = e.params.nbBits + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
 	if nextOverflow > e.maxOverflow() {
-		err = fmt.Errorf("next multiplication overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+		err = errOverflow{op: "mul", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow()}
 	}
 	return
 }
@@ -503,7 +513,7 @@ func (e *Element) Sub(a, b Element) *Element {
 func (e Element) subPreCond(a, b Element) (nextOverflow uint, err error) {
 	nextOverflow = b.overflow + 2
 	if nextOverflow > e.maxOverflow() {
-		err = fmt.Errorf("next subtraction overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+		err = errOverflow{op: "sub", nextOverflow: nextOverflow, maxOverflow: e.maxOverflow()}
 	}
 	return
 }
