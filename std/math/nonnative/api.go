@@ -65,9 +65,9 @@ func (f *fakeAPI) varsToElements(in ...frontend.Variable) []*Element {
 func (f *fakeAPI) Add(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.params.Element(f.api)
-	res.Add(*els[0], *els[1])
+	res.reduceAndOp(res.add, res.addPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
-		res.Add(res, *els[i])
+		res.reduceAndOp(res.add, res.addPreCond, &res, els[i])
 	}
 	return &res
 }
@@ -84,19 +84,19 @@ func (f *fakeAPI) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend
 	sub := f.params.Element(f.api)
 	sub.Set(*els[1])
 	for i := 2; i < len(els); i++ {
-		sub.Add(sub, *els[i])
+		sub.reduceAndOp(sub.add, sub.addPreCond, &sub, els[i])
 	}
 	res := f.params.Element(f.api)
-	res.Sub(*els[0], sub)
+	res.reduceAndOp(res.sub, res.subPreCond, els[0], &sub)
 	return &res
 }
 
 func (f *fakeAPI) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := f.varsToElements(i1, i2, in)
 	res := f.params.Element(f.api)
-	res.Mul(*els[0], *els[1])
+	res.reduceAndOp(res.mul, res.mulPreCond, els[0], els[1])
 	for i := 2; i < len(els); i++ {
-		res.Mul(res, *els[i])
+		res.reduceAndOp(res.mul, res.mulPreCond, &res, els[i])
 	}
 	return &res
 }

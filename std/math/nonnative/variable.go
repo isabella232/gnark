@@ -9,8 +9,11 @@ package nonnative
 // where the user does not need to manually reduce and the library does it as
 // necessary.
 // TODO: check that the parameters coincide for elements.
+// TODO: less equal than
+// TODO: simple exponentiation before we implement Wesolowsky
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -618,4 +621,21 @@ func (e *Element) Lookup2(b0, b1 frontend.Variable, a, b, c, d Element) *Element
 		e.Limbs[i] = e.api.Lookup2(b0, b1, a.Limbs[i], b.Limbs[i], c.Limbs[i], d.Limbs[i])
 	}
 	return e
+}
+
+// reduceAndOp applies op on the inputs. If the pre-condition check preCond
+// errs, then first reduces the input arguments. The reduction is done
+// one-by-one with the element with highest overflow reduced first.
+func (e *Element) reduceAndOp(op func(Element, Element, uint), preCond func(Element, Element) (uint, error), a, b *Element) {
+	var nextOverflow uint
+	var err error
+	var target errOverflow
+	for nextOverflow, err = preCond(*a, *b); errors.As(err, &target); nextOverflow, err = preCond(*a, *b) {
+		if a.overflow >= b.overflow {
+			a.Reduce(*a)
+		} else {
+			b.Reduce(*b)
+		}
+	}
+	op(*a, *b, nextOverflow)
 }
