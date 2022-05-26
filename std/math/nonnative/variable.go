@@ -247,11 +247,11 @@ func (e *Element) FromBits(in []frontend.Variable) {
 	e.Limbs = limbs
 }
 
-// maxWidth returns the maximum width of the limb value + overflow which fits
-// into the scalar field widthout overflow. If next operation exceeds the value,
-// then the element should be reduced before the operation.
-func (e *Element) maxWidth() uint {
-	return uint(e.api.Curve().Info().Fr.Modulus().BitLen()) - 1
+// maxOverflow returns the maximal possible overflow for the element. If the
+// overflow of the next operation exceeds the value returned by this method,
+// then the limbs may overflow the native field.
+func (e Element) maxOverflow() uint {
+	return uint(e.api.Curve().Info().Fr.Modulus().BitLen()-1) - e.params.nbBits
 }
 
 // assertLimbsEqualitySlow is the main routine in the package. It asserts that the
@@ -346,12 +346,28 @@ func (e *Element) Add(a, b Element) *Element {
 	// constant's overflow never increases?)
 	// TODO: check that the target is a variable (has an API)
 	// TODO: if both are constants, then add big ints
-	e.overflow = 1
-	if a.overflow > b.overflow {
-		e.overflow += a.overflow
-	} else {
-		e.overflow += b.overflow
+	overflow, err := e.addPreCond(a, b)
+	if err != nil {
+		panic(err)
 	}
+	e.add(a, b, overflow)
+	return e
+}
+
+func (e Element) addPreCond(a, b Element) (nextOverflow uint, err error) {
+	nextOverflow = 1
+	if a.overflow > b.overflow {
+		nextOverflow += a.overflow
+	} else {
+		nextOverflow += b.overflow
+	}
+	if nextOverflow > e.maxOverflow() {
+		err = fmt.Errorf("next addition overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+	}
+	return
+}
+
+func (e *Element) add(a, b Element, nextOverflow uint) {
 	nbLimbs := len(a.Limbs)
 	if len(b.Limbs) > nbLimbs {
 		nbLimbs = len(b.Limbs)
@@ -367,7 +383,7 @@ func (e *Element) Add(a, b Element) *Element {
 		}
 	}
 	e.Limbs = limbs
-	return e
+	e.overflow = nextOverflow
 }
 
 // Mul sets e to a*b and returns e. The returned element may not be reduced to
@@ -377,6 +393,24 @@ func (e *Element) Mul(a, b Element) *Element {
 	// TODO: when one element is constant.
 	// TODO: check that target is initialized (has an API)
 	// TODO: if both are constants, then do big int mul
+	overflow, err := e.mulPreCond(a, b)
+	if err != nil {
+		panic(err)
+	}
+	e.mul(a, b, overflow)
+	return e
+}
+
+func (e Element) mulPreCond(a, b Element) (nextOverflow uint, err error) {
+	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
+	nextOverflow = e.params.nbBits + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	if nextOverflow > e.maxOverflow() {
+		err = fmt.Errorf("next multiplication overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+	}
+	return
+}
+
+func (e *Element) mul(a, b Element, nextOverflow uint) {
 	limbs, err := computeMultiplicationHint(e.api, e.params, a.Limbs, b.Limbs)
 	if err != nil {
 		panic(fmt.Sprintf("multiplication hint: %s", err))
@@ -406,9 +440,7 @@ func (e *Element) Mul(a, b Element) *Element {
 		e.api.AssertIsEqual(e.api.Mul(l, r), o)
 	}
 	e.Limbs = limbs
-	e.overflow = e.params.nbBits + uint(math.Log2(float64(2*len(limbs)-1))) + 1 + a.overflow + b.overflow
-	// result is not reduced
-	return e
+	e.overflow = nextOverflow
 }
 
 // Reduce reduces a modulo modulus and assigns e to the reduced value.
@@ -460,6 +492,23 @@ func (e *Element) AssertIsEqual(a Element) {
 // Sub sets e to a-b and returns e. The returned element may not be reduced to
 // be less than the ring modulus.
 func (e *Element) Sub(a, b Element) *Element {
+	overflow, err := e.subPreCond(a, b)
+	if err != nil {
+		panic(err)
+	}
+	e.sub(a, b, overflow)
+	return e
+}
+
+func (e Element) subPreCond(a, b Element) (nextOverflow uint, err error) {
+	nextOverflow = b.overflow + 2
+	if nextOverflow > e.maxOverflow() {
+		err = fmt.Errorf("next subtraction overflow %d larger than max overflow %d", nextOverflow, e.maxOverflow())
+	}
+	return
+}
+
+func (e *Element) sub(a, b Element, nextOverflow uint) {
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
 	nbLimbs := len(a.Limbs)
@@ -468,7 +517,6 @@ func (e *Element) Sub(a, b Element) *Element {
 	}
 	limbs := make([]frontend.Variable, nbLimbs)
 	padLimbs := subPadding(e.params, b.overflow, uint(nbLimbs))
-	e.overflow = b.overflow + 2
 	for i := range limbs {
 		limbs[i] = padLimbs[i]
 		if i < len(a.Limbs) {
@@ -479,7 +527,7 @@ func (e *Element) Sub(a, b Element) *Element {
 		}
 	}
 	e.Limbs = limbs
-	return e
+	e.overflow = nextOverflow
 }
 
 // Div sets e to a/b and returns e. If modulus is not a prime, it panics. The
