@@ -39,6 +39,11 @@ func (f *fakeAPI) varToElement(in frontend.Variable) *Element {
 	case int:
 		el := f.params.ConstantFromBigOrPanic(big.NewInt(int64(vv)))
 		e = &el
+	case string:
+		elb := new(big.Int)
+		elb.SetString(vv, 10)
+		el := f.params.ConstantFromBigOrPanic(elb)
+		e = &el
 	default:
 		panic(fmt.Sprintf("can not cast %T to *Element", in))
 	}
