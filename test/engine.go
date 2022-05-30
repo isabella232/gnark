@@ -44,7 +44,7 @@ import (
 type engine struct {
 	backendID backend.ID
 	curveID   ecc.ID
-	opt       backend.ProverConfig
+	// opt       backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
 }
 
@@ -54,17 +54,17 @@ type engine struct {
 // The test execution engine implements frontend.API using big.Int operations.
 //
 // This is an experimental feature.
-func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, opts ...backend.ProverOption) (err error) {
-	// apply options
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
+func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, wrapper func(frontend.API) frontend.API) (err error) {
+	// // apply options
+	// opt, err := backend.NewProverConfig(opts...)
+	// if err != nil {
+	// 	return err
+	// }
 
-	e := &engine{backendID: b, curveID: curveID, opt: opt}
-	if opt.Force {
-		panic("ignoring errors in test.Engine is not supported")
-	}
+	e := &engine{backendID: b, curveID: curveID}
+	// if opt.Force {
+	// 	panic("ignoring errors in test.Engine is not supported")
+	// }
 
 	// TODO handle opt.LoggerOut ?
 
@@ -84,7 +84,13 @@ func IsSolved(circuit, witness frontend.Circuit, curveID ecc.ID, b backend.ID, o
 		}
 	}()
 
-	err = c.Define(e)
+	var api frontend.API
+	if wrapper != nil {
+		api = wrapper(e)
+	} else {
+		api = e
+	}
+	err = c.Define(api)
 
 	return
 }
