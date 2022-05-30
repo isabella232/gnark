@@ -2,12 +2,18 @@ package nonnative
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
+	"sort"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/test"
 )
 
@@ -92,4 +98,113 @@ func TestEmulatedApi(t *testing.T) {
 	}
 
 	assert.ProverSucceeded(&circuit, &witness, test.WithProverOpts(backend.WithHints(GetHints()...)), test.WithCurves(testCurve))
+}
+
+func TestIntegrationApi(t *testing.T) {
+	assert := test.NewAssert(t)
+	r := ecc.BN254.Info().Fr.Modulus()
+	params, err := NewParams(32, r)
+	assert.NoError(err)
+	wrapper := func(api frontend.API) frontend.API {
+		return NewAPI(api, params)
+	}
+	keys := make([]string, 0, len(circuits.Circuits))
+	for k := range circuits.Circuits {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for i := range keys {
+		name := keys[i]
+		tData := circuits.Circuits[name]
+		for i := range tData.ValidAssignments {
+			assignment := tData.ValidAssignments[i]
+			assert.Run(func(assert *test.Assert) {
+				err = test.IsSolved(tData.Circuit, assignment, testCurve, backend.GROTH16, wrapper)
+				assert.NoError(err)
+			}, name, fmt.Sprintf("valid=%d", i))
+		}
+		for i := range tData.InvalidAssignments {
+			assignment := tData.InvalidAssignments[i]
+			assert.Run(func(assert *test.Assert) {
+				err = test.IsSolved(tData.Circuit, assignment, testCurve, backend.GROTH16, wrapper)
+				assert.Error(err)
+				// assert.ProverFailed(tData.Circuit, assignment, test.WithProverOpts(backend.WithHints(tData.HintFunctions...)), test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
+			}, name, fmt.Sprintf("invalid=%d", i))
+		}
+	}
+}
+
+type pairingBLS377 struct {
+	P          sw_bls12377.G1Affine `gnark:",public"`
+	Q          sw_bls12377.G2Affine
+	pairingRes bls12377.GT
+}
+
+func (circuit *pairingBLS377) Define(api frontend.API) error {
+	pairingRes, _ := sw_bls12377.Pair(api,
+		[]sw_bls12377.G1Affine{circuit.P},
+		[]sw_bls12377.G2Affine{circuit.Q})
+	api.AssertIsEqual(pairingRes.C0.B0.A0, &circuit.pairingRes.C0.B0.A0)
+	api.AssertIsEqual(pairingRes.C0.B0.A1, &circuit.pairingRes.C0.B0.A1)
+	api.AssertIsEqual(pairingRes.C0.B1.A0, &circuit.pairingRes.C0.B1.A0)
+	api.AssertIsEqual(pairingRes.C0.B1.A1, &circuit.pairingRes.C0.B1.A1)
+	api.AssertIsEqual(pairingRes.C0.B2.A0, &circuit.pairingRes.C0.B2.A0)
+	api.AssertIsEqual(pairingRes.C0.B2.A1, &circuit.pairingRes.C0.B2.A1)
+	api.AssertIsEqual(pairingRes.C1.B0.A0, &circuit.pairingRes.C1.B0.A0)
+	api.AssertIsEqual(pairingRes.C1.B0.A1, &circuit.pairingRes.C1.B0.A1)
+	api.AssertIsEqual(pairingRes.C1.B1.A0, &circuit.pairingRes.C1.B1.A0)
+	api.AssertIsEqual(pairingRes.C1.B1.A1, &circuit.pairingRes.C1.B1.A1)
+	api.AssertIsEqual(pairingRes.C1.B2.A0, &circuit.pairingRes.C1.B2.A0)
+	api.AssertIsEqual(pairingRes.C1.B2.A1, &circuit.pairingRes.C1.B2.A1)
+	return nil
+}
+
+func TestPairingBLS377(t *testing.T) {
+	assert := test.NewAssert(t)
+	params, err := NewParams(32, ecc.BW6_761.Info().Fr.Modulus())
+	assert.NoError(err)
+	wrapper := func(api frontend.API) frontend.API {
+		return NewAPI(api, params)
+	}
+
+	// pairing test data
+	_, _, P, Q := bls12377.Generators()
+	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
+	pairingRes := bls12377.FinalExponentiation(&milRes)
+
+	// create cs
+	var circuit pairingBLS377
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	// var pxb, pyb, qxab, qxbb, qyab, qybb *big.Int
+	pxb := new(big.Int)
+	pyb := new(big.Int)
+	qxab := new(big.Int)
+	qxbb := new(big.Int)
+	qyab := new(big.Int)
+	qybb := new(big.Int)
+	witness := pairingBLS377{
+		pairingRes: pairingRes,
+		P: sw_bls12377.G1Affine{
+			X: params.ConstantFromBigOrPanic(P.X.ToBigIntRegular(pxb)),
+			Y: params.ConstantFromBigOrPanic(P.Y.ToBigIntRegular(pyb)),
+		},
+		Q: sw_bls12377.G2Affine{
+			X: fields_bls12377.E2{
+				A0: params.ConstantFromBigOrPanic(Q.X.A0.ToBigIntRegular(qxab)),
+				A1: params.ConstantFromBigOrPanic(Q.X.A1.ToBigIntRegular(qxbb)),
+			},
+			Y: fields_bls12377.E2{
+				A0: params.ConstantFromBigOrPanic(Q.Y.A0.ToBigIntRegular(qyab)),
+				A1: params.ConstantFromBigOrPanic(Q.Y.A1.ToBigIntRegular(qybb)),
+			},
+		},
+	}
+
+	err = test.IsSolved(&circuit, &witness, testCurve, backend.GROTH16, wrapper)
+	// assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761),
+	// test.WithBackends(backend.GROTH16))
+	assert.NoError(err)
 }
