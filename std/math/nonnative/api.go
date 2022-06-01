@@ -240,10 +240,8 @@ func (f *fakeAPI) Println(a ...frontend.Variable) {
 }
 
 func (f *fakeAPI) Compiler() frontend.Compiler {
-	return f.api.Compiler()
+	return f
 }
-
-// Deprecated APIs
 
 func (f *fakeAPI) NewHint(hf hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	// this is a trick to allow calling hint functions using non-native
@@ -345,4 +343,12 @@ func (f *fakeAPI) Curve() ecc.ID {
 
 func (f *fakeAPI) Backend() backend.ID {
 	return f.api.Compiler().Backend()
+}
+
+func (f *fakeAPI) IsBoolean(v frontend.Variable) bool {
+	panic("not implemented")
+}
+
+func (f *fakeAPI) MarkBoolean(v frontend.Variable) {
+	panic("not implemented") // TODO: Implement
 }
