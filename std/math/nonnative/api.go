@@ -334,7 +334,34 @@ func (f *fakeAPI) AddCounter(from frontend.Tag, to frontend.Tag) {
 }
 
 func (f *fakeAPI) ConstantValue(v frontend.Variable) (*big.Int, bool) {
-	panic("deprecated, use Compiler().ConstantValue()")
+	var constLimbs []*big.Int
+	var nbBits uint
+	var succ bool
+	switch vv := v.(type) {
+	case Element:
+		nbBits = vv.params.nbBits
+		constLimbs = make([]*big.Int, len(vv.Limbs))
+		for i := range vv.Limbs {
+			if constLimbs[i], succ = f.api.Compiler().ConstantValue(vv.Limbs[i]); !succ {
+				return nil, false
+			}
+		}
+	case *Element:
+		nbBits = vv.params.nbBits
+		constLimbs = make([]*big.Int, len(vv.Limbs))
+		for i := range vv.Limbs {
+			if constLimbs[i], succ = f.api.Compiler().ConstantValue(vv.Limbs[i]); !succ {
+				return nil, false
+			}
+		}
+	default:
+		return f.api.Compiler().ConstantValue(vv)
+	}
+	res := new(big.Int)
+	if err := recompose(constLimbs, nbBits, res); err != nil {
+		return nil, false
+	}
+	return res, true
 }
 
 func (f *fakeAPI) Curve() ecc.ID {
@@ -346,9 +373,23 @@ func (f *fakeAPI) Backend() backend.ID {
 }
 
 func (f *fakeAPI) IsBoolean(v frontend.Variable) bool {
-	panic("not implemented")
+	switch vv := v.(type) {
+	case Element:
+		return f.api.Compiler().IsBoolean(vv.Limbs[0])
+	case *Element:
+		return f.api.Compiler().IsBoolean(vv.Limbs[0])
+	default:
+		return f.api.Compiler().IsBoolean(vv)
+	}
 }
 
 func (f *fakeAPI) MarkBoolean(v frontend.Variable) {
-	panic("not implemented") // TODO: Implement
+	switch vv := v.(type) {
+	case Element:
+		f.api.Compiler().MarkBoolean(vv.Limbs[0])
+	case *Element:
+		f.api.Compiler().MarkBoolean(vv.Limbs[0])
+	default:
+		f.api.Compiler().MarkBoolean(vv)
+	}
 }
