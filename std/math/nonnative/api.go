@@ -107,7 +107,6 @@ func (f *fakeAPI) Mul(i1 frontend.Variable, i2 frontend.Variable, in ...frontend
 }
 
 func (f *fakeAPI) DivUnchecked(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
-	// TODO: implement unchecked div?
 	return f.Div(i1, i2)
 }
 
@@ -165,8 +164,38 @@ func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.
 		res.Select(b, *els[0], *els[1])
 		return &res
 	}
-	s1 := els[0]
-	s2 := els[1]
+	s0 := els[0]
+	s1 := els[1]
+	if s0.overflow != 0 || len(s0.Limbs) != int(f.params.nbLimbs) {
+		v := f.params.Element(f.api)
+		v.Reduce(*s0)
+		s0 = &v
+	}
+	if s1.overflow != 0 || len(s1.Limbs) != int(f.params.nbLimbs) {
+		v := f.params.Element(f.api)
+		v.Reduce(*s1)
+		s1 = &v
+	}
+	res.Select(b, *s0, *s1)
+	return &res
+}
+
+func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
+	els := f.varsToElements(i0, i1, i2, i3)
+	res := f.params.Element(f.api)
+	if els[0].overflow == els[1].overflow && els[0].overflow == els[2].overflow && els[0].overflow == els[3].overflow && len(els[0].Limbs) == len(els[1].Limbs) && len(els[0].Limbs) == len(els[2].Limbs) && len(els[0].Limbs) == len(els[3].Limbs) {
+		res.Lookup2(b0, b1, *els[0], *els[1], *els[2], *els[3])
+		return &res
+	}
+	s0 := els[0]
+	s1 := els[1]
+	s2 := els[2]
+	s3 := els[3]
+	if s0.overflow != 0 || len(s0.Limbs) != int(f.params.nbLimbs) {
+		v := f.params.Element(f.api)
+		v.Reduce(*s0)
+		s0 = &v
+	}
 	if s1.overflow != 0 || len(s1.Limbs) != int(f.params.nbLimbs) {
 		v := f.params.Element(f.api)
 		v.Reduce(*s1)
@@ -177,14 +206,12 @@ func (f *fakeAPI) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.
 		v.Reduce(*s2)
 		s2 = &v
 	}
-	res.Select(b, *s1, *s2)
-	return &res
-}
-
-func (f *fakeAPI) Lookup2(b0 frontend.Variable, b1 frontend.Variable, i0 frontend.Variable, i1 frontend.Variable, i2 frontend.Variable, i3 frontend.Variable) frontend.Variable {
-	els := f.varsToElements(i0, i1, i2, i3)
-	res := f.params.Element(f.api)
-	res.Lookup2(b0, b1, *els[0], *els[1], *els[2], *els[3])
+	if s3.overflow != 0 || len(s3.Limbs) != int(f.params.nbLimbs) {
+		v := f.params.Element(f.api)
+		v.Reduce(*s3)
+		s3 = &v
+	}
+	res.Lookup2(b0, b1, *s0, *s1, *s2, *s3)
 	return &res
 }
 
